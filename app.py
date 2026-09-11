@@ -3,58 +3,133 @@ import requests
 
 app = Flask(__name__)
 
+def get_city_coordinates(city):
+    """Find latitude and longitude for a city."""
+
+    geo_url = "https://geocoding-api.open-meteo.com/v1/search"
+
+    geo_params = {
+        "name": city,
+        "count": 1,
+        "language": "en",
+        "format": "json"
+    }
+
+    try:
+        response = requests.get(
+            geo_url,
+            params=geo_params,
+            timeout=10
+        )
+        response.raise_for_status()
+
+        data = response.json()
+
+        if not data.get("results"):
+            return None
+
+        location = data["results"][0]
+
+        return {
+            "latitude": location["latitude"],
+            "longitude": location["longitude"],
+            "name": location.get("name"),
+            "country": location.get("country"),
+            "admin1": location.get("admin1")
+        }
+
+    except requests.RequestException:
+        return None
+
+
+def get_weather(latitude, longitude):
+    """Get current weather information."""
+
+    weather_url = "https://api.open-meteo.com/v1/forecast"
+
+    weather_params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
+        "timezone": "auto"
+    }
+
+    try:
+        response = requests.get(
+            weather_url,
+            params=weather_params,
+            timeout=10
+        )
+        response.raise_for_status()
+
+        data = response.json()
+
+        current = data.get("current")
+
+        if not current:
+            return None
+
+        return {
+            "temperature": current.get("temperature_2m"),
+            "humidity": current.get("relative_humidity_2m"),
+            "wind_speed": current.get("wind_speed_10m"),
+            "weather_code": current.get("weather_code")
+        }
+
+    except requests.RequestException:
+        return None
+
 
 @app.route("/", methods=["GET", "POST"])
 def home():
 
-    temperature = None
     city = None
+    temperature = None
+    humidity = None
+    wind_speed = None
+    weather_code = None
+    country = None
     error = None
 
     if request.method == "POST":
 
-        city = request.form["city"]
+        city = request.form.get("city", "").strip()
 
-        # first find latitude and longitude of the city
-        geo_url = "https://geocoding-api.open-meteo.com/v1/search"
-
-        geo_params = {"name": city, "count": 1, "language": "en", "format": "json"}
-
-               
-        geo_response = requests.get(geo_url, params=geo_params)
-        geo_data = geo_response.json()
-
-
-
-        if "results" not in geo_data:
-            error = "City not found."
+        # Validate city
+        if not city:
+            error = "Please enter a city name."
 
         else:
-            latitude = geo_data["results"][0]["latitude"]
-            longitude = geo_data["results"][0]["longitude"]
+            location = get_city_coordinates(city)
 
-            # Get current temperature
-            weather_url = "https://api.open-meteo.com/v1/forecast"
+            if not location:
+                error = "City not found or geocoding service unavailable."
 
-            weather_params = {
-                "latitude": latitude,
-                "longitude": longitude,
-                "current": "temperature_2m"
-            }
+            else:
+                country = location["country"]
 
-            weather_response = requests.get(
-                weather_url,
-                params=weather_params
-            )
+                weather = get_weather(
+                    location["latitude"],
+                    location["longitude"]
+                )
 
-            weather_data = weather_response.json()
+                if not weather:
+                    error = "Unable to get weather information."
 
-            temperature = weather_data["current"]["temperature_2m"]
+                else:
+                    temperature = weather["temperature"]
+                    humidity = weather["humidity"]
+                    wind_speed = weather["wind_speed"]
+                    weather_code = weather["weather_code"]
 
     return render_template(
         "index.html",
         city=city,
+        country=country,
         temperature=temperature,
+        humidity=humidity,
+        wind_speed=wind_speed,
+        weather_code=weather_code,
         error=error
     )
 
