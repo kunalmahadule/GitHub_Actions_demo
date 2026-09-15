@@ -29,5 +29,4 @@ def test_weather_page():
     # check that temperature is displayed
     assert b"Mumbai" in response.data
 
-    
 

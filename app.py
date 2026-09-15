@@ -3,6 +3,7 @@ import requests
 
 app = Flask(__name__)
 
+### Handle invalid city name issue resolved here
 def get_city_coordinates(city):
     """Find latitude and longitude for a city."""
 
