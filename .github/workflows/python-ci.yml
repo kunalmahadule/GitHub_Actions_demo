@@ -35,6 +35,9 @@ jobs:
 
             - name: Run tests
               run: pytest
-
+            
+            - name: Check PLC OPC UA Connection
+              run: |
+                python plc/plc_check.py
 
 
